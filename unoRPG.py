@@ -17,7 +17,16 @@ class Baralho():
             # duas vezes numeros de 1-9 e 0
             for num in range(1,19+1):
                 num = num % 10
-                self.cartas.append(Carta(num,cor))
+                self.cartas.append(Carta(num,cor,'nada'))
+            # adiciono 2 cartas +2, inverte e bloqueio da mesma cor
+            for _ in range(2):
+                self.cartas.append(Carta(-1,cor,'+2'))
+                self.cartas.append(Carta(-2,cor,'inverte'))
+                self.cartas.append(Carta(-3,cor,'bloqueio'))
+        # adiciono 4 cartas +4 e mudar cor
+        for _ in range(4):
+            self.cartas.append(Carta(-4,'preto','+4'))
+            self.cartas.append(Carta(-5,'preto','mudar cor'))
 
     def embaralhar(self):
         shuffle(self.cartas)
@@ -33,16 +42,24 @@ class Baralho():
         self.lixo.append(carta)
 
 class Carta():
-    def __init__(self,num,cor):
+    def __init__(self,num,cor,especial):
         self.num = num
         self.cor = cor
+        self.especial = especial
+
     def same_cor(self,carta):
-        return carta.cor == self.cor
+        return carta.cor == self.cor or carta.cor == 'preto'
     def same_num(self,carta):
         return carta.num == self.num
-    # testes
+    def is_especial(self):
+        return self.especial != 'nada'
     def ler(self):
-        return (str(self.num)+" "+str(self.cor))
+        # cartas especiais
+        if self.is_especial():
+            return (self.especial+" "+str(self.cor))
+        # cartas normais
+        else:
+            return (str(self.num)+" "+str(self.cor))
 
 class Jogador():
     def __init__(self,nome,st,dx,iq):
@@ -77,15 +94,21 @@ class Mesa():
         self.turno_jogador = 0
         self.baralho = Baralho()
         self.baralho.embaralhar()
+        self.sentido_horario = True
         # dou cartas pros jogadores
         for _ in range(numero_cartas_inicio):
             for j in self.jogadores:
                 j.add_carta(self.baralho.pegar_carta())
         # carta de inicio do game
         self.carta_topo = self.baralho.pegar_carta()
+        # carta topo nao pode ser especial
+        while (self.carta_topo.is_especial()):
+            self.baralho.add_lixo(self.carta_topo)
+            self.carta_topo = self.baralho.pegar_carta()
 
     def avancar_turno(self):
-        self.turno_jogador = (self.turno_jogador + 1) % 4
+        sentido = 1 if self.sentido_horario else -1
+        self.turno_jogador = (self.turno_jogador + sentido) % 4
 
     def jogador_comprar_carta(self, qtde):
         jogador_turno = self.jogadores[self.turno_jogador]
@@ -104,28 +127,53 @@ class Mesa():
         self.carta_topo = nova_carta
         # avisar que jogador jogou a carta
         jogador_turno = self.jogadores[self.turno_jogador]
+        nome = jogador_turno.nome
         print(jogador_turno.nome+"("+str(jogador_turno.qtd_cartas())+")"+" jogou "+nova_carta.ler())
-        # gritar uno
-        if (jogador_turno.qtd_cartas() == 1):
-            time.sleep(1)
-            # procura jogador pra falar uno antes
-            falaram_antes = False
-            for j in self.jogadores:
-                # n eh o mesmo jogador
-                if j != jogador_turno:
-                    rand_j = randint(0,5)
-                    rand_jogador_turno = randint(0,9)
-                    if (j.dx + rand_j) > (jogador_turno.dx + rand_jogador_turno):
-                        falaram_antes = True
-                        print(j.nome+" falou uno antes que "+jogador_turno.nome)
-                        print(str(j.dx)+"+("+str(rand_j)+")           "+str(jogador_turno.dx)+"+("+str(rand_jogador_turno)+")")
-                        time.sleep(3)
-                        # comprar carta
-                        self.jogador_comprar_carta(1)
-                        break
-            # caso ngm fale uno antes
-            if (falaram_antes == False):
-                print(jogador_turno.nome+" falou Uno")
+
+    def carta_especial_executar_acao(self,nova_cor):
+        carta = self.carta_topo
+        if   carta.especial == '+2':
+            self.avancar_turno()
+            jogador_turno = self.jogadores[self.turno_jogador]
+            self.jogador_comprar_carta(2)
+        elif carta.especial == 'inverte':
+            print("Sentido das jogadas foi invertido")
+            self.sentido_horario = not self.sentido_horario
+        elif carta.especial == 'bloqueio':
+            self.avancar_turno()
+            jogador_turno = self.jogadores[self.turno_jogador]
+            print("Pulado o turno de "+jogador_turno.nome+"("+str(jogador_turno.qtd_cartas())+")")
+        elif carta.especial == '+4':
+            self.avancar_turno()
+            jogador_turno = self.jogadores[self.turno_jogador]
+            self.jogador_comprar_carta(4)
+            self.carta_topo.cor = nova_cor
+            print("Cor escolhida: "+nova_cor)
+        elif carta.especial == 'mudar cor':
+            self.carta_topo.cor = nova_cor
+            print("Cor escolhida: "+nova_cor)
+
+    def falar_uno(self):
+        jogador_turno = self.jogadores[self.turno_jogador]
+        nome = jogador_turno.nome
+        # procura jogador pra falar uno antes
+        falaram_antes = False
+        for j in self.jogadores:
+            # n eh o mesmo jogador
+            if j != jogador_turno:
+                rand_j = randint(0,5)
+                rand_jogador_turno = randint(0,9)
+                if (j.dx + rand_j) > (jogador_turno.dx + rand_jogador_turno):
+                    falaram_antes = True
+                    print(j.nome+" falou uno antes que "+nome)
+                    print("DXs:"+str(j.dx)+"+("+str(rand_j)+")           "+str(jogador_turno.dx)+"+("+str(rand_jogador_turno)+")")
+                    time.sleep(3)
+                    # comprar carta
+                    self.jogador_comprar_carta(1)
+                    break
+        # caso ngm fale uno antes
+        if (falaram_antes == False):
+            print(jogador_turno.nome+" falou Uno")
 
 def menu():
     print("Bem vindo a nossa cidade de Unopolis")
@@ -196,6 +244,7 @@ def menu():
     while (concorda != "sim"):
         concorda = input("E agora?\n")
     # retorno
+    print("Escolha a carta digitando o número que aparece a sua esquerda antes do 'dois pontos'")
     return Jogador(nome,st,dx,iq)
 
 def gerar_bots():
@@ -214,15 +263,17 @@ def gerar_bots():
 
 def player_escolher_jogada(jogador, carta_topo):
     print("Seu turno, você possui:")
-    for i in range(len(jogador.cartas)):
-        print(str(i)+": "+jogador.cartas[i].ler())
-
-    # verifica se pode escolher alguma carta
+    # verifica se pode escolher alguma carta e printa as possibilidades
     possivel_carta = False
-    for carta in jogador.cartas:
+    for i in range(len(jogador.cartas)):
+        carta = jogador.cartas[i]
+        # verifica se a carta e possivel de ser jogada
         if (carta_topo.same_cor(carta) or carta_topo.same_num(carta)):
             possivel_carta = True
-            break
+            print(str(i)+": "+carta.ler())
+        # se nao for possivel
+        else:
+            print(str(i)+"  "+carta.ler())
 
     # se n tiver carta possivel
     if (not possivel_carta):
@@ -247,6 +298,13 @@ def player_escolher_jogada(jogador, carta_topo):
 
     return carta_select
 
+def player_escolher_nova_cor():
+    print("Qual será a próxima cor?\n(amarelo/azul/verde/vermelho)")
+    nova_cor = input()
+    while (nova_cor != "amarelo" and nova_cor != "azul" and nova_cor != "verde" and nova_cor != "vermelho"):
+        print("Por favor digite uma das cores: amarelo/azul/verde/vermelho")
+        nova_cor = input()
+    return nova_cor
 
 def game(jogadores):
     mesa = Mesa(jogadores)
@@ -271,6 +329,27 @@ def game(jogadores):
                 mesa.jogador_comprar_carta(1)
             else:
                 mesa.jogar_carta(carta_jogada)
+                # cartas especiais
+                if carta_jogada.is_especial():
+                    # mudar a cor  (por '+4' ou 'mudar cor')
+                    nova_cor = None
+                    if carta_jogada.cor == 'preto':
+                        # turno do player
+                        if (turno_jogador == 0):
+                            nova_cor = player_escolher_nova_cor()
+                        # bots
+                        else:
+                            r = randint(0,3)
+                            if r == 0:   nova_cor = 'amarelo'
+                            elif r == 1: nova_cor = 'azul'
+                            elif r == 2: nova_cor = 'verde'
+                            else:        nova_cor = 'vermelho'
+                    # executar acao das cartas especiais
+                    mesa.carta_especial_executar_acao(nova_cor)
+                # gritar uno
+                if (jogador_turno.qtd_cartas() == 1):
+                    time.sleep(1)
+                    mesa.falar_uno()
                 # fim de jogo
                 if (jogador_turno.qtd_cartas() == 0):
                     print(nome+" ganhou o jogo")
@@ -282,8 +361,8 @@ def game(jogadores):
 
 
 def start():
-    j1 = menu()
-    # j1 = Jogador("Testerson",-5,5,0)
+    # j1 = menu()
+    j1 = Jogador("Testerson",5,5,0)
 
     # criar jogadores
     jogadores = gerar_bots()
