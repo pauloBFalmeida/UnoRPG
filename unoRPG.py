@@ -361,8 +361,8 @@ def game(jogadores):
 
 
 def start():
-    # j1 = menu()
-    j1 = Jogador("Testerson",5,5,0)
+    j1 = menu()
+    # j1 = Jogador("Testerson",5,5,0)
 
     # criar jogadores
     jogadores = gerar_bots()
